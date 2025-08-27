@@ -47,10 +47,16 @@ void ReadData(char name[], TProblemData &data)
     int u, v;
     for (int i = 0; i < data.nEdges; i++)
     {
-        fscanf(arq, "%d %d", &u, &v);
-        // assume vertices start at 1 in the file → convert to 0-index
-        u--;
-        v--;
+        if (fscanf(arq, "%d %d", &u, &v) != 2)
+        {
+            printf("Erro lendo aresta %d do arquivo %s\n", i, name);
+            exit(1);
+        }
+        if (u < 0 || u >= data.nVertices || v < 0 || v >= data.nVertices)
+        {
+            printf("Aresta invalida no arquivo %s: %d %d\n", name, u, v);
+            exit(1);
+        }
         data.adj[u].push_back(v);
         data.adj[v].push_back(u);
     }
