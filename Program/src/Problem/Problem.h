@@ -2,190 +2,102 @@
 #define _PROBLEM_H
 
 #include <vector>
-#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
-#include <numeric>
+#include <iostream>
+#include <algorithm>
 
-/*
- * Estrutura de dados que representa a instância do problema
- * de Conjunto Dominante (Dominating Set).
- */
+//----------------- STRUCT -----------------
 struct TProblemData
 {
-    int n;                             // Tamanho do vetor de chaves aleatórias (número de vértices)
-    int nVertices;                     // Quantidade de vértices no grafo
-    int nEdges;                        // Quantidade de arestas no grafo
-    std::vector<std::vector<int>> adj; // Lista de adjacências (vizinhos de cada vértice)
+    int n;                             // tamanho do vetor de chaves
+    int nVertices;                     // número de vértices
+    int nEdges;                        // número de arestas
+    std::vector<std::vector<int>> adj; // lista de adjacência
 };
 
-/*
- * Função de leitura da instância do problema.
- * Lê o grafo a partir de um arquivo no formato:
- *   nVertices nEdges
- *   u1 v1
- *   u2 v2
- *   E assim por diante
- * Cada linha após a primeira contém uma aresta (u, v).
- */
+//----------------- LEITURA -----------------
 void ReadData(char name[], TProblemData &data)
 {
-    FILE *arq;
-    arq = fopen(name, "r");
-
+    FILE *arq = fopen(name, "r");
     if (arq == NULL)
     {
-        // Caso o arquivo não seja encontrado
         printf("\nERROR: File (%s) not found!\n", name);
         getchar();
         exit(1);
     }
 
-    // Lê o número de vértices e arestas
     fscanf(arq, "%d %d", &data.nVertices, &data.nEdges);
+    data.adj.assign(data.nVertices, std::vector<int>());
 
-    // Inicializa a lista de adjacências
-    data.adj.clear();
-    data.adj.resize(data.nVertices);
-
-    // Lê cada aresta e atualiza a lista de adjacências
     int u, v;
     for (int i = 0; i < data.nEdges; i++)
     {
         if (fscanf(arq, "%d %d", &u, &v) != 2)
-        {
-            printf("Erro lendo aresta %d do arquivo %s\n", i, name);
-            exit(1);
-        }
-        // Verifica se os vértices são válidos
-        if (u < 0 || u >= data.nVertices || v < 0 || v >= data.nVertices)
-        {
-            printf("Aresta invalida no arquivo %s: %d %d\n", name, u, v);
-            exit(1);
-        }
-        // Grafo não direcionado -> adiciona em ambas as listas
+            break;
         data.adj[u].push_back(v);
         data.adj[v].push_back(u);
     }
 
-    // O tamanho do vetor de chaves vai ser igual ao número de vértices
     data.n = data.nVertices;
-
     fclose(arq);
 }
 
-/*
- * Função Decoder.
- * Recebe uma solução codificada como vetor de chaves aleatórias (TSol &s),
- * interpreta essa solução e calcula seu custo (tamanho do conjunto dominante).
- *
- * A função retorna um valor double, que é o número de vértices escolhidos
- * no conjunto dominante. Quanto menor, melhor.
- */
+//----------------- DECODER -----------------
 double Decoder(TSol &s, const TProblemData &data)
 {
-    const int n = data.n;
+    // ordem dos vértices pelas chaves aleatórias
+    std::vector<std::pair<double, int>> order;
+    order.reserve(data.n);
+    for (int i = 0; i < data.n; i++)
+        order.push_back({s.rk[i], i});
+    std::sort(order.begin(), order.end()); // menor chave primeiro
 
-    // Cria um vetor com todos os vértices [0, 1, ..., n-1]
-    std::vector<int> order(n);
-    std::iota(order.begin(), order.end(), 0);
+    std::vector<int> dominated(data.n, 0);
+    std::vector<int> selected(data.n, 0);
 
-    // Ordena os vértices de acordo com suas chaves aleatórias (rk)
-    std::sort(order.begin(), order.end(), [&](int a, int b)
-              { return s.rk[a] < s.rk[b]; });
+    int covered = 0;
+    int setSize = 0;
 
-    // Vetor que guarda quantas vezes cada vértice está dominado
-    std::vector<int> coverCount(n, 0);
-
-    // Vetor dos vértices escolhidos no conjunto dominante
-    std::vector<int> chosen;
-    chosen.reserve(n);
-
-    // Função auxiliar para adicionar um vértice ao conjunto dominante
-    auto add_vertex = [&](int v)
+    // escolhe vértices até dominar todo o grafo
+    for (auto &p : order)
     {
-        chosen.push_back(v);
+        int v = p.second;
+        if (dominated[v])
+            continue;
 
-        // O vértice domina a si próprio
-        coverCount[v]++;
+        selected[v] = 1;
+        setSize++;
 
-        // E domina todos os seus vizinhos
-        for (int u : data.adj[v])
-            coverCount[u]++;
-    };
-
-    /*
-     * Construção gulosa do conjunto dominante:
-     * Percorre os vértices em ordem crescente de chave aleatória
-     * e adiciona ao conjunto dominante sempre que necessário.
-     */
-    for (int v : order)
-    {
-        bool need = (coverCount[v] == 0); // v não está dominado?
-        if (!need)
+        if (!dominated[v])
         {
-            // Verifica se há vizinhos ainda não dominados
-            for (int u : data.adj[v])
-                if (coverCount[u] == 0)
-                {
-                    need = true;
-                    break;
-                }
+            dominated[v] = 1;
+            covered++;
         }
-        if (need)
-            add_vertex(v);
-    }
-
-    /*
-     * através do prunning, tenta remover vértices redundantes.
-     * Se após a remoção todos os vértices continuarem dominados,
-     * então o vértice era redundante e pode ser descartado.
-     */
-    for (int i = (int)chosen.size() - 1; i >= 0; --i)
-    {
-        int v = chosen[i];
-        bool canRemove = (coverCount[v] > 1); // v ainda está dominado por outro?
-
-        if (canRemove)
+        for (int neigh : data.adj[v])
         {
-            for (int u : data.adj[v])
+            if (!dominated[neigh])
             {
-                if (coverCount[u] <= 1)
-                {
-                    canRemove = false;
-                    break;
-                }
+                dominated[neigh] = 1;
+                covered++;
             }
         }
-        if (canRemove)
-        {
-            // Remove v do conjunto dominante e atualiza coberturas
-            coverCount[v]--;
-            for (int u : data.adj[v])
-                coverCount[u]--;
-            chosen[i] = chosen.back();
-            chosen.pop_back();
-        }
+        if (covered == data.n)
+            break;
     }
 
-    /*
-     * Verificação de segurança: se algum vértice não estiver dominado,
-     * retorna um valor muito alto, portanto invalidando a solução.
-     */
-    for (int i = 0; i < n; ++i)
-        if (coverCount[i] == 0)
-            return 1e9;
+    // se não conseguiu cobrir tudo, penaliza
+    if (covered < data.n)
+        return 1e6 + (data.n - covered);
 
-    // Retorna o tamanho do conjunto dominante construído
-    return (double)chosen.size();
+    return setSize;
 }
 
-/*
- * Função para liberar memória da instância.
- */
+//----------------- LIBERAR MEMÓRIA -----------------
 void FreeMemoryProblem(TProblemData &data)
 {
     data.adj.clear();
+    data.adj.shrink_to_fit();
 }
 
 #endif
