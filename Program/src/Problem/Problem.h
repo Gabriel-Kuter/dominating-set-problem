@@ -10,10 +10,10 @@
 //----------------- STRUCT -----------------
 struct TProblemData
 {
-    int n;                             // tamanho do vetor de chaves
-    int nVertices;                     // número de vértices
-    int nEdges;                        // número de arestas
-    std::vector<std::vector<int>> adj; // lista de adjacência
+    int n;
+    int nVertices;
+    int nEdges;
+    std::vector<std::vector<int>> adj;
 };
 
 //----------------- LEITURA -----------------
